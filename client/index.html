@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vcall</title>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111111;
+      --border: #222222;
+      --text: #e8e8e8;
+      --muted: #555;
+      --accent: #c8ff00;
+      --accent-dim: rgba(200, 255, 0, 0.08);
+      --danger: #ff4444;
+      --radius: 2px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'ui-monospace', 'Cascadia Code', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    /* Subtle grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.3;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #app {
+      position: relative;
+      z-index: 1;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .wordmark {
+      font-family: 'ui-monospace', 'Cascadia Code', 'Menlo', 'Consolas', monospace;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      position: fixed;
+      top: 28px;
+      left: 32px;
+    }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+      width: 100%;
+      max-width: 360px;
+      animation: fadeUp 0.3s ease both;
+    }
+    .screen.active { display: flex; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .screen-label {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .divider {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Inputs */
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'ui-monospace', 'Cascadia Code', 'Menlo', 'Consolas', monospace;
+      font-size: 16px;
+      letter-spacing: 0.12em;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+    input[type="text"]::placeholder { color: var(--muted); }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      font-family: 'ui-monospace', 'Cascadia Code', 'Menlo', 'Consolas', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #d9ff1a; }
+    .btn-primary:active { transform: scale(0.98); }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .btn-outline:hover { border-color: var(--muted); }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .btn-danger:hover { background: rgba(255,68,68,0.08); }
+
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* Code display */
+    .code-box {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      gap: 12px;
+    }
+    .code-value {
+      font-family: 'ui-monospace', 'Cascadia Code', 'Menlo', 'Consolas', monospace;
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: 0.25em;
+      color: var(--accent);
+    }
+    .copy-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 18px;
+      padding: 4px;
+      transition: color 0.15s;
+      line-height: 1;
+    }
+    .copy-btn:hover { color: var(--accent); }
+
+    /* Status */
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: 0.05em;
+    }
+    .status.error { color: var(--danger); }
+    .status.success { color: var(--accent); }
+
+    /* Pulse dot */
+    .pulse-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* In-call screen */
+    .call-visual {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      position: relative;
+    }
+    .call-visual.speaking::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 1px solid var(--accent);
+      animation: ring 1s ease-out infinite;
+    }
+    @keyframes ring {
+      from { opacity: 0.8; transform: scale(1); }
+      to   { opacity: 0; transform: scale(1.3); }
+    }
+
+    .call-timer {
+      font-family: 'ui-monospace', 'Cascadia Code', 'Menlo', 'Consolas', monospace;
+      font-size: 36px;
+      font-weight: 400;
+      letter-spacing: 0.05em;
+      color: var(--text);
+    }
+
+    .call-controls {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+    .call-controls .btn { flex: 1; }
+
+    .mute-indicator {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .mute-indicator.muted { color: var(--danger); }
+
+    /* Incoming call screen */
+    .incoming-ring {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      border: 1px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px;
+      animation: incomingPulse 0.8s ease-in-out infinite alternate;
+    }
+    @keyframes incomingPulse {
+      from { box-shadow: 0 0 0 0 rgba(200,255,0,0.3); }
+      to   { box-shadow: 0 0 0 20px rgba(200,255,0,0); }
+    }
+
+    .incoming-actions {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+    .incoming-actions .btn { flex: 1; }
+
+    .version {
+      position: fixed;
+      bottom: 24px;
+      right: 28px;
+      font-size: 10px;
+      color: #2a2a2a;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="wordmark">vcall</div>
+
+  <!-- HOME -->
+  <div class="screen active" id="screen-home">
+    <div class="screen-label">voice · end-to-end · p2p</div>
+    <button class="btn btn-primary" onclick="generateCall()">new call</button>
+    <div class="divider">or</div>
+    <div style="width:100%;display:flex;flex-direction:column;gap:12px;">
+      <input type="text" id="join-code" placeholder="enter code" maxlength="12" autocomplete="off" spellcheck="false" />
+      <button class="btn btn-outline" onclick="joinCall()">join</button>
+    </div>
+    <div class="status" id="home-status"></div>
+  </div>
+
+  <!-- WAITING (caller waiting for peer) -->
+  <div class="screen" id="screen-waiting">
+    <div class="screen-label">share this code</div>
+    <div class="code-box">
+      <span class="code-value" id="display-code"></span>
+      <button class="copy-btn" onclick="copyCode()" title="copy">⧉</button>
+    </div>
+    <div class="pulse-wrap">
+      <div class="pulse"></div>
+      <span>waiting for peer...</span>
+    </div>
+    <div class="status" id="waiting-status"></div>
+    <button class="btn btn-outline" onclick="cancelCall()">cancel</button>
+  </div>
+
+  <!-- INCOMING -->
+  <div class="screen" id="screen-incoming">
+    <div class="incoming-ring">📞</div>
+    <div class="screen-label">incoming call</div>
+    <div class="incoming-actions">
+      <button class="btn btn-danger" onclick="rejectCall()">decline</button>
+      <button class="btn btn-primary" onclick="acceptCall()">answer</button>
+    </div>
+  </div>
+
+  <!-- IN CALL -->
+  <div class="screen" id="screen-call">
+    <div class="call-visual" id="call-avatar">🔊</div>
+    <div class="call-timer" id="call-timer">00:00</div>
+    <div class="mute-indicator" id="mute-indicator">live</div>
+    <div class="call-controls">
+      <button class="btn btn-outline" id="mute-btn" onclick="toggleMute()">mute</button>
+      <button class="btn btn-danger" onclick="hangUp()">end</button>
+    </div>
+  </div>
+
+  <div class="version">v0.1.0</div>
+</div>
+
+<audio id="remote-audio" autoplay playsinline></audio>
+
+<script>
+  // ── CONFIG ───────────────────────────────────────────────────────────────────
+  const WS_URL = 'wss://YOUR_RENDER_APP.onrender.com'; // <-- change this
+
+  const STUN = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  // ── STATE ────────────────────────────────────────────────────────────────────
+  let ws = null;
+  let pc = null;
+  let localStream = null;
+  let currentCode = null;
+  let role = null; // 'caller' | 'callee'
+  let isMuted = false;
+  let callStart = null;
+  let timerInterval = null;
+  let pendingCandidates = [];
+  let remoteDescSet = false;
+
+  // ── HELPERS ──────────────────────────────────────────────────────────────────
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function setStatus(id, msg, type = '') {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'status' + (type ? ' ' + type : '');
+  }
+
+  function genCode() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  }
+
+  function copyCode() {
+    navigator.clipboard.writeText(currentCode).then(() => {
+      setStatus('waiting-status', 'copied!', 'success');
+      setTimeout(() => setStatus('waiting-status', ''), 1500);
+    });
+  }
+
+  function startTimer() {
+    callStart = Date.now();
+    timerInterval = setInterval(() => {
+      const s = Math.floor((Date.now() - callStart) / 1000);
+      const m = Math.floor(s / 60);
+      const ss = s % 60;
+      document.getElementById('call-timer').textContent =
+        String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    document.getElementById('call-timer').textContent = '00:00';
+  }
+
+  // ── WS ───────────────────────────────────────────────────────────────────────
+  function connectWS() {
+    return new Promise((resolve, reject) => {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => resolve();
+      ws.onerror = () => reject(new Error('WebSocket connection failed'));
+      ws.onmessage = (e) => handleSignal(JSON.parse(e.data));
+      ws.onclose = () => {
+        if (document.getElementById('screen-call').classList.contains('active')) {
+          endCall();
+          alert('Connection lost.');
+        }
+      };
+    });
+  }
+
+  function send(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }
+
+  // ── SIGNALING ────────────────────────────────────────────────────────────────
+  async function handleSignal(msg) {
+    switch (msg.type) {
+      case 'peer-joined':
+        // Caller: peer joined, start offer
+        await startCall();
+        break;
+
+      case 'offer':
+        // Callee receives offer — store it, show incoming screen
+        window._pendingOffer = msg.sdp;
+        show('screen-incoming');
+        break;
+
+      case 'answer':
+        await pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
+        remoteDescSet = true;
+        await flushCandidates();
+        break;
+
+      case 'ice-candidate':
+        if (remoteDescSet) {
+          await pc.addIceCandidate(msg.candidate).catch(() => {});
+        } else {
+          pendingCandidates.push(msg.candidate);
+        }
+        break;
+
+      case 'hang-up':
+      case 'room-closed':
+        endCall();
+        break;
+
+      case 'error':
+        handleError(msg.reason);
+        break;
+    }
+  }
+
+  async function flushCandidates() {
+    for (const c of pendingCandidates) {
+      await pc.addIceCandidate(c).catch(() => {});
+    }
+    pendingCandidates = [];
+  }
+
+  // ── WEBRTC ───────────────────────────────────────────────────────────────────
+  async function getMic() {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  }
+
+  function createPC() {
+    pc = new RTCPeerConnection(STUN);
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+    pc.ontrack = (e) => {
+      const audio = document.getElementById('remote-audio');
+      audio.srcObject = e.streams[0];
+
+      // Visual speaking indicator (rough amplitude detection)
+      try {
+        const ctx = new AudioContext();
+        const src = ctx.createMediaStreamSource(e.streams[0]);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        src.connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const avatar = document.getElementById('call-avatar');
+        setInterval(() => {
+          analyser.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / data.length;
+          avatar.classList.toggle('speaking', avg > 8);
+        }, 100);
+      } catch {}
+    };
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) send({ type: 'ice-candidate', candidate: e.candidate });
+    };
+  }
+
+  async function startCall() {
+    // Caller side
+    createPC();
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    send({ type: 'offer', sdp: offer.sdp });
+    show('screen-call');
+    startTimer();
+  }
+
+  async function acceptCall() {
+    await getMic();
+    createPC();
+    await pc.setRemoteDescription({ type: 'offer', sdp: window._pendingOffer });
+    remoteDescSet = true;
+    await flushCandidates();
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    send({ type: 'answer', sdp: answer.sdp });
+    show('screen-call');
+    startTimer();
+  }
+
+  function rejectCall() {
+    send({ type: 'hang-up' });
+    cleanup();
+    show('screen-home');
+  }
+
+  function endCall() {
+    stopTimer();
+    cleanup();
+    show('screen-home');
+  }
+
+  function hangUp() {
+    send({ type: 'hang-up' });
+    endCall();
+  }
+
+  function cleanup() {
+    if (pc) { pc.close(); pc = null; }
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    if (ws) { ws.close(); ws = null; }
+    isMuted = false;
+    remoteDescSet = false;
+    pendingCandidates = [];
+    window._pendingOffer = null;
+    currentCode = null;
+    role = null;
+    document.getElementById('mute-btn').textContent = 'mute';
+    document.getElementById('mute-indicator').textContent = 'live';
+    document.getElementById('mute-indicator').className = 'mute-indicator';
+  }
+
+  function handleError(reason) {
+    const messages = {
+      'not-found': 'code not found or expired',
+      'room-full': 'room already has two people',
+      'code-taken': 'code already in use — try again',
+    };
+    setStatus('home-status', messages[reason] || 'something went wrong', 'error');
+    cleanup();
+    show('screen-home');
+  }
+
+  // ── ACTIONS ──────────────────────────────────────────────────────────────────
+  async function generateCall() {
+    setStatus('home-status', '');
+    const code = genCode();
+    try {
+      await getMic();
+      await connectWS();
+      currentCode = code;
+      role = 'caller';
+      send({ type: 'create', code });
+      document.getElementById('display-code').textContent = code;
+      show('screen-waiting');
+    } catch (err) {
+      cleanup();
+      setStatus('home-status', err.message || 'failed to start call', 'error');
+    }
+  }
+
+  async function joinCall() {
+    const code = document.getElementById('join-code').value.trim().toLowerCase();
+    if (code.length !== 12) {
+      setStatus('home-status', 'code must be 12 characters', 'error');
+      return;
+    }
+    setStatus('home-status', 'connecting...', '');
+    try {
+      await connectWS();
+      currentCode = code;
+      role = 'callee';
+      send({ type: 'join', code });
+      // Wait for offer to come in — handled in handleSignal
+    } catch (err) {
+      cleanup();
+      setStatus('home-status', err.message || 'failed to connect', 'error');
+    }
+  }
+
+  function cancelCall() {
+    send({ type: 'hang-up' });
+    cleanup();
+    show('screen-home');
+  }
+
+  function toggleMute() {
+    if (!localStream) return;
+    isMuted = !isMuted;
+    localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+    document.getElementById('mute-btn').textContent = isMuted ? 'unmute' : 'mute';
+    const ind = document.getElementById('mute-indicator');
+    ind.textContent = isMuted ? 'muted' : 'live';
+    ind.className = 'mute-indicator' + (isMuted ? ' muted' : '');
+  }
+
+  // Enter key on join input
+  document.getElementById('join-code').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') joinCall();
+  });
+</script>
+</body>
+  </html>
+                                                                                 
