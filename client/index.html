@@ -375,6 +375,7 @@
   let timerInterval = null;
   let pendingCandidates = [];
   let remoteDescSet = false;
+  let pendingOffer = null;
 
   // ── HELPERS ──────────────────────────────────────────────────────────────────
   function show(id) {
@@ -448,7 +449,7 @@
 
       case 'offer':
         // Callee receives offer — store it, show incoming screen
-        window._pendingOffer = msg.sdp;
+        pendingOffer = msg.sdp;
         show('screen-incoming');
         break;
 
@@ -532,7 +533,7 @@
   async function acceptCall() {
     await getMic();
     createPC();
-    await pc.setRemoteDescription({ type: 'offer', sdp: window._pendingOffer });
+    await pc.setRemoteDescription({ type: 'offer', sdp: pendingOffer });
     remoteDescSet = true;
     await flushCandidates();
     const answer = await pc.createAnswer();
@@ -566,7 +567,7 @@
     isMuted = false;
     remoteDescSet = false;
     pendingCandidates = [];
-    window._pendingOffer = null;
+    pendingOffer = null;
     currentCode = null;
     role = null;
     document.getElementById('mute-btn').textContent = 'mute';
@@ -590,8 +591,8 @@
     setStatus('home-status', '');
     const code = genCode();
     try {
-      await getMic();
       await connectWS();
+      await getMic();
       currentCode = code;
       role = 'caller';
       send({ type: 'create', code });
