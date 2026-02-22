@@ -428,7 +428,7 @@
       ws.onclose = () => {
         if (document.getElementById('screen-call').classList.contains('active')) {
           endCall();
-          alert('Connection lost.');
+          setStatus('home-status', 'connection lost', 'error');
         }
       };
     });
@@ -645,4 +645,3 @@
 </script>
 </body>
   </html>
-                                                                                 
